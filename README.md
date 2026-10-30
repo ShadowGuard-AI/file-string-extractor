@@ -1,3 +1,5 @@
+![Banner](banner.png)
+
 # file-string-extractor
 Extracts all printable strings from a file and flags those that resemble URLs, email addresses, or cryptographic keys/secrets, aiding in identifying potentially sensitive or malicious content. - Focused on File operations and analysis
 
