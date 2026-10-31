@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import codecs
 import logging
 import os
 import re
@@ -118,10 +119,13 @@ def write_output(strings, secrets, output_file=None):
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(output)
             logging.info(f"Output written to {output_file}")
+            return True
         except Exception as e:
             logging.error(f"Error writing to file {output_file}: {e}")
+            return False
     else:
         print(output)
+        return True
 
 
 def validate_filepath(filepath):
@@ -152,17 +156,34 @@ def main():
 
     filepath = args.filepath
 
+    try:
+        codecs.lookup(args.encoding)
+    except LookupError:
+        logging.error(f"Unknown encoding: {args.encoding}")
+        sys.exit(1)
+
     if not validate_filepath(filepath):
         sys.exit(1) # Exit with error code
+
+    if args.output and Path(args.output).resolve() == Path(filepath).resolve():
+        logging.error("Output file is the same as the input file. Refusing to overwrite the input.")
+        sys.exit(1)
 
     strings = extract_strings(filepath, args.encoding)
 
     if strings is None:
         sys.exit(1) # Exit with error code
 
+    logging.info(f"Extracted {len(strings)} string(s) from {filepath}")
+
+    if len(strings) == 0:
+        print("No strings extracted.")
+        sys.exit(1)
+
     secrets = identify_secrets(strings)
 
-    write_output(strings, secrets, args.output)
+    if not write_output(strings, secrets, args.output):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
