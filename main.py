@@ -53,6 +53,12 @@ def extract_strings(filepath, encoding='utf-8'):
 
     try:
         # Attempt decoding with specified encoding. Handle errors gracefully.
+        # errors='ignore' makes the except below unreachable: a decode that
+        # drops bad bytes never raises UnicodeDecodeError, so the latin-1
+        # fallback is dead code in practice. What actually happens to a file
+        # in the wrong encoding is quieter: bytes vanish, and the string
+        # search runs over what survives. A UTF-16 file read as UTF-8 loses
+        # every second byte's meaning and its strings come out fragmented.
         text = content.decode(encoding, errors='ignore') # 'ignore' replaces undecodable chars
     except UnicodeDecodeError as e:
         logging.warning(f"UnicodeDecodeError with encoding '{encoding}': {e}. Trying latin-1...")
@@ -63,6 +69,9 @@ def extract_strings(filepath, encoding='utf-8'):
             return None
 
 
+    # Printable means the ASCII range from space to tilde, four or more in
+    # a row. Anything outside that range, accented letters included, breaks
+    # a string into pieces, and pieces under four characters are dropped.
     strings = re.findall(r'[ -~]{4,}', text)  # Find strings of at least 4 printable characters
     return strings
 
@@ -86,9 +95,18 @@ def identify_secrets(strings):
 
     for s in strings:
         if URL_REGEX.search(s):
+            # The whole containing string is recorded, not just the matched part.
+            # A URL inside a long log line puts the entire line in the report,
+            # which keeps context and also means the report can carry text nobody
+            # classified as sensitive.
             secrets['urls'].append(s)
         if EMAIL_REGEX.search(s):
             secrets['emails'].append(s)
+        # The API key pattern is any run of 32 or more letters and digits, so
+        # hashes, long words, and base64 fragments all flag. It is a net, not
+        # an identifier. The credit card pattern is the opposite shape:
+        # anchored to the whole string, so a card number is only flagged when
+        # the extracted string is exactly the number and nothing else.
         if API_KEY_REGEX.search(s):
             secrets['api_keys'].append(s)
         if CREDIT_CARD_REGEX.search(s):
